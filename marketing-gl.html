@@ -164,9 +164,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <!-- KPI Row -->
     <div class="kpi-row">
         <div class="kpi-card"><div class="label">Total Net Spend</div><div class="value" id="kpiNetSpend">--</div></div>
-        <div class="kpi-card"><div class="label">Avg Per Property</div><div class="value" id="kpiAvgProp">--</div></div>
+        <div class="kpi-card"><div class="label">MTM Spend</div><div class="value" id="kpiAvgProp">--</div></div>
         <div class="kpi-card"><div class="label">Total Transactions</div><div class="value" id="kpiTxn">--</div></div>
-        <div class="kpi-card"><div class="label">Properties</div><div class="value" id="kpiPropCount">--</div></div>
+        <div class="kpi-card"><div class="label">Spend/Door</div><div class="value" id="kpiPropCount">--</div></div>
         <div class="kpi-card"><div class="label">Total Flags</div><div class="value" id="kpiFlags">--</div></div>
     </div>
 
@@ -186,8 +186,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
                 <thead><tr>
                     <th data-sort="name">Property</th>
                     <th data-sort="net">Net Spend</th>
-                    <th data-sort="debits">Debits</th>
-                    <th data-sort="credits">Credits</th>
+                    <th data-sort="mtm">MTM Spend</th>
+                    <th data-sort="door">Spend/Door</th>
                     <th data-sort="txn">Transactions</th>
                     <th data-sort="flags">Flags</th>
                 </tr></thead>
@@ -211,9 +211,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
                 <thead><tr>
                     <th>GL Account</th>
                     <th>Name</th>
-                    <th>Debits</th>
-                    <th>Credits</th>
-                    <th>Net (Debit-Credit)</th>
+                    <th>Net</th>
+                    <th>MTM Spend</th>
                     <th>Txn Count</th>
                 </tr></thead>
                 <tbody id="glBody"></tbody>
@@ -224,9 +223,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             <table class="data-table" id="vendorTable">
                 <thead><tr>
                     <th>Vendor</th>
-                    <th>Debits</th>
-                    <th>Credits</th>
                     <th>Net</th>
+                    <th>MTM Spend</th>
                     <th>Txn Count</th>
                 </tr></thead>
                 <tbody id="vendorBody"></tbody>
@@ -247,6 +245,14 @@ const PROP_LIST = [["09555", "35 West"], ["ala", "Alaire"], ["p0003818", "Ambert
 let rankingChartInst = null;
 let monthlyChartInst = null;
 let propMonthlyChartInst = null;
+var UNIT_COUNTS = {
+    '09555': 300, 'h121fin': 1424, 'ala': 279, 'tera': 214, 'gat': 356,
+    'p0003817': 216, 'p0003818': 190, 'p0003820': 252,
+    'p0003821': 290, 'p0003822': 229, 'p0003823': 252
+};
+function getUnits(code) { return UNIT_COUNTS[code] || 0; }
+function getTotalUnits(props) { return props.reduce(function(s,p) { return s + (UNIT_COUNTS[p.code] || 0); }, 0); }
+
 let currentSort = { col: 'net', dir: -1 };
 
 // Populate property dropdown
@@ -339,9 +345,12 @@ function renderPortfolioView(props, codes) {
     const totalFlags = props.reduce(function(s,p) { return s + p.flag_count; }, 0);
 
     document.getElementById('kpiNetSpend').textContent = fmtCur(totalNet);
-    document.getElementById('kpiAvgProp').textContent = fmtCur(totalNet / (props.length || 1));
+    document.getElementById('kpiAvgProp').textContent = fmtCur(totalNet / 12);
+    document.getElementById('kpiAvgProp').previousElementSibling.textContent = 'MTM Spend';
     document.getElementById('kpiTxn').textContent = fmtNum(totalTxn);
-    document.getElementById('kpiPropCount').textContent = props.length;
+    var portUnits = getTotalUnits(props);
+    document.getElementById('kpiPropCount').textContent = portUnits ? fmtCur(totalNet / portUnits) : 'N/A';
+    document.getElementById('kpiPropCount').previousElementSibling.textContent = 'Spend/Door';
     document.getElementById('kpiFlags').textContent = totalFlags;
 
     renderRankingChart(props);
@@ -456,8 +465,8 @@ function renderComparisonTable(props) {
         let va, vb;
         if (col === 'name') { va = a.display_name; vb = b.display_name; }
         else if (col === 'net') { va = a.net_spend; vb = b.net_spend; }
-        else if (col === 'debits') { va = a.total_debits; vb = b.total_debits; }
-        else if (col === 'credits') { va = a.total_credits; vb = b.total_credits; }
+        else if (col === 'mtm') { va = a.net_spend/12; vb = b.net_spend/12; }
+        else if (col === 'door') { va = (getUnits(a.code) ? a.net_spend/getUnits(a.code) : 0); vb = (getUnits(b.code) ? b.net_spend/getUnits(b.code) : 0); }
         else if (col === 'txn') { va = a.txn_count; vb = b.txn_count; }
         else if (col === 'flags') { va = a.flag_count; vb = b.flag_count; }
         if (typeof va === 'string') return currentSort.dir * va.localeCompare(vb);
@@ -469,8 +478,8 @@ function renderComparisonTable(props) {
         return '<tr style="cursor:pointer" onclick="selectProperty(\'' + p.code + '\')">' +
             '<td>' + p.display_name + '</td>' +
             '<td class="num">' + fmtCur(p.net_spend) + '</td>' +
-            '<td class="num">' + fmtCur(p.total_debits) + '</td>' +
-            '<td class="num">' + fmtCur(p.total_credits) + '</td>' +
+            '<td class="num">' + fmtCur(p.net_spend/12) + '</td>' +
+            '<td class="num">' + (getUnits(p.code) ? fmtCur(p.net_spend/getUnits(p.code)) : 'N/A') + '</td>' +
             '<td class="num">' + fmtNum(p.txn_count) + '</td>' +
             '<td class="num">' + p.flag_count + '</td>' +
         '</tr>';
@@ -492,18 +501,18 @@ function renderPropertyDetail(code) {
     // Property KPIs
     const prop = DATA.properties.find(function(p) { return p.code === code; });
     document.getElementById('kpiNetSpend').textContent = fmtCur(det.net_spend);
-    document.getElementById('kpiAvgProp').textContent = fmtCur(det.total_debits);
-    document.getElementById('kpiAvgProp').previousElementSibling.textContent = 'Total Debits';
+    var propUnits = getUnits(code);
+    document.getElementById('kpiAvgProp').textContent = propUnits ? fmtCur(det.net_spend / propUnits) : 'N/A';
+    document.getElementById('kpiAvgProp').previousElementSibling.textContent = 'Spend/Door';
     document.getElementById('kpiTxn').textContent = fmtNum(det.txn_count);
-    document.getElementById('kpiPropCount').textContent = fmtCur(det.total_credits);
-    document.getElementById('kpiPropCount').previousElementSibling.textContent = 'Total Credits';
+    document.getElementById('kpiPropCount').textContent = fmtCur(det.net_spend / 12);
+    document.getElementById('kpiPropCount').previousElementSibling.textContent = 'MTM Spend';
     document.getElementById('kpiFlags').textContent = det.flags.length;
 
     // Monthly chart
     const months = Object.keys(det.monthly).sort();
     const nets = months.map(function(m) { return det.monthly[m].net; });
-    const debits = months.map(function(m) { return det.monthly[m].debits; });
-    const credits = months.map(function(m) { return -det.monthly[m].credits; });
+    // Net only - Debits/Credits removed
     const labels = months.map(function(m) {
         const parts = m.split('-');
         const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -516,9 +525,7 @@ function renderPropertyDetail(code) {
         data: {
             labels: labels,
             datasets: [
-                { label: 'Debits', data: debits, backgroundColor: 'rgba(239,83,80,0.7)' },
-                { label: 'Credits', data: credits, backgroundColor: 'rgba(102,187,106,0.7)' },
-                { label: 'Net', data: nets, type: 'line', borderColor: '#e040fb', backgroundColor: 'transparent', pointRadius: 4, pointBackgroundColor: '#e040fb', tension: 0.3 }
+                { label: 'Net Spend', data: nets, backgroundColor: 'rgba(224,64,251,0.7)', borderColor: '#e040fb', borderWidth: 1 }
             ]
         },
         options: {
@@ -552,9 +559,8 @@ function renderPropertyDetail(code) {
         return '<tr>' +
             '<td>' + k + '</td>' +
             '<td>' + gl.name + '</td>' +
-            '<td class="num">' + fmtCur(gl.debits) + '</td>' +
-            '<td class="num">' + fmtCur(gl.credits) + '</td>' +
             '<td class="num ' + (net > 0 ? 'positive' : 'negative') + '">' + fmtCurSigned(net) + '</td>' +
+            '<td class="num">' + fmtCur(net/12) + '</td>' +
             '<td class="num">' + gl.txn_count + '</td>' +
         '</tr>';
     }).join('');
@@ -566,9 +572,8 @@ function renderPropertyDetail(code) {
         const v = vendors[k];
         return '<tr>' +
             '<td>' + k + '</td>' +
-            '<td class="num">' + fmtCur(v.debits) + '</td>' +
-            '<td class="num">' + fmtCur(v.credits) + '</td>' +
             '<td class="num">' + fmtCurSigned(v.net) + '</td>' +
+            '<td class="num">' + fmtCur(v.net/12) + '</td>' +
             '<td class="num">' + v.count + '</td>' +
         '</tr>';
     }).join('');
