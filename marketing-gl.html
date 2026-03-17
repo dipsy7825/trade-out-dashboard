@@ -399,8 +399,8 @@ function renderRankingChart(props) {
     const labels = sorted.map(function(p) { return p.display_name; });
     const values = sorted.map(function(p) { return p.net_spend; });
     const colors = sorted.map(function(p,i) {
-        const hue = 280 + (i * 15) % 60;
-        return 'hsl(' + hue + ', 70%, 60%)';
+        const lightness = 35 + (i * 4);
+        return 'hsl(214, 55%, ' + lightness + '%)';
     });
 
     if (rankingChartInst) rankingChartInst.destroy();
@@ -428,7 +428,7 @@ function renderRankingChart(props) {
                     grid: { color: 'rgba(40,59,98,0.08)' }
                 },
                 y: {
-                    ticks: { color: '#e0e0e0', font: { size: 12 } },
+                    ticks: { color: '#2C3E50', font: { size: 12 } },
                     grid: { display: false }
                 }
             }
@@ -466,7 +466,7 @@ function renderMonthlyChart(codes) {
                 label: 'Monthly Net Spend',
                 data: monthlyNets,
                 borderColor: '#4A7CB5',
-                backgroundColor: 'rgba(224,64,251,0.1)',
+                backgroundColor: 'rgba(74,124,181,0.12)',
                 fill: true,
                 tension: 0.3,
                 pointRadius: 5,
