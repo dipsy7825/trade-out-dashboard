@@ -236,9 +236,18 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background:#
                 </table>
             </div>
         </div>
+        <div class="chart-section" style="padding-bottom:8px;">
+            <h3 style="margin-bottom:8px;">Portfolio Detail Tables</h3>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <label style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#4A7CB5;font-weight:600;">Filter by Property</label>
+                <select id="pfDetailFilter" onchange="filterPortfolioDetail()" style="padding:6px 12px;border:1px solid #B8CCE0;border-radius:4px;font-size:13px;color:#2C3E50;background:#fff;min-width:220px;">
+                    <option value="all">All Properties</option>
+                </select>
+            </div>
+        </div>
         <div class="chart-section">
-            <h3>GL Account Monthly Breakdown (Portfolio)</h3>
-            <div class="monthly-subtitle">Net spend by GL account across all properties &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
+            <h3>GL Account Monthly Breakdown</h3>
+            <div class="monthly-subtitle">Net spend by GL account &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
             <div class="monthly-grid-wrap">
                 <table class="monthly-grid" id="pfGLGridTable">
                     <thead id="pfGLGridHead"></thead>
@@ -247,8 +256,8 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background:#
             </div>
         </div>
         <div class="chart-section">
-            <h3>Vendor Monthly Breakdown (Portfolio)</h3>
-            <div class="monthly-subtitle">Net spend by vendor across all properties &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
+            <h3>Vendor Monthly Breakdown</h3>
+            <div class="monthly-subtitle">Net spend by vendor &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
             <div class="monthly-grid-wrap">
                 <table class="monthly-grid" id="pfVendorGridTable">
                     <thead id="pfVendorGridHead"></thead>
@@ -257,8 +266,8 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background:#
             </div>
         </div>
         <div class="chart-section">
-            <h3>Accounting Adjustments (Portfolio)</h3>
-            <div class="monthly-subtitle">Journal entries, accruals, reclasses, reversals across all properties &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
+            <h3>Accounting Adjustments</h3>
+            <div class="monthly-subtitle">Journal entries, accruals, reclasses, reversals &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
             <div class="monthly-grid-wrap">
                 <table class="monthly-grid" id="pfAcctgNoiseTable">
                     <thead id="pfAcctgNoiseHead"></thead>
@@ -441,6 +450,25 @@ function renderPortfolioView(props, codes) {
     renderMonthlyChart(codes);
     renderComparisonTable(props);
     renderMonthlyGrid(props);
+
+    // Populate portfolio detail filter dropdown
+    currentPortfolioCodes = codes;
+    var pfFilter = document.getElementById('pfDetailFilter');
+    pfFilter.innerHTML = '<option value="all">All Properties</option>';
+    props.forEach(function(p) {
+        pfFilter.innerHTML += '<option value="' + p.code + '">' + p.display_name + '</option>';
+    });
+
+    renderPortfolioGLGrid(codes);
+    renderPortfolioVendorGrid(codes);
+    renderPortfolioAcctgGrid(codes);
+}
+
+var currentPortfolioCodes = [];
+
+function filterPortfolioDetail() {
+    var sel = document.getElementById('pfDetailFilter').value;
+    var codes = (sel === 'all') ? currentPortfolioCodes : [sel];
     renderPortfolioGLGrid(codes);
     renderPortfolioVendorGrid(codes);
     renderPortfolioAcctgGrid(codes);
@@ -873,20 +901,41 @@ function renderPortfolioGLGrid(codes) {
     renderDetailGrid('GL Account', 'pfGLGridHead', 'pfGLGridBody', items, 'portfolio');
 }
 
+var VENDOR_ALIAS = {
+    'Apartment List Inc': 'Apartment List',
+    'RAM PARTNERS LLC': 'RAM PARTNERS, LLC',
+    'RealPage Inc.': 'RealPage, Inc.',
+    'Real Page': 'RealPage, Inc.',
+    'Zillow, Inc.': 'Zillow Group Inc',
+    'DX Print & Mail, LLC': 'DX Print & Mail LLC',
+    'Amazon.com Services, Inc.': 'Amazon.com Services LLC',
+    'Amazon.Com Services LLC': 'Amazon.com Services LLC',
+    'Aramark Refreshment Services, LLC (trw0013)': 'Aramark Refreshment Services',
+    'Armark Refreshment Services (vb-002)': 'Aramark Refreshment Services',
+    'Katelyn Nassoiy-Custodian of Petty Cash': 'Katelyn Nassoiy',
+    'Richard Cruz-Custodian of Petty Cash': 'Richard Cruz',
+    'RICHARD CRUZ': 'Richard Cruz'
+};
+
+function normalizeVendor(name) {
+    return VENDOR_ALIAS[name] || name;
+}
+
 function renderPortfolioVendorGrid(codes) {
     var allMonths = ['2025-03','2025-04','2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'];
     var vendorAgg = {}; // {vendor: {months: {m: {net}}}}
     codes.forEach(function(code) {
         var md = MONTHLY_DATA[code];
         if (!md || !md.vendor_monthly) return;
-        for (var vendor in md.vendor_monthly) {
+        for (var rawVendor in md.vendor_monthly) {
+            var vendor = normalizeVendor(rawVendor);
             if (!vendorAgg[vendor]) {
                 vendorAgg[vendor] = { months: {} };
                 allMonths.forEach(function(m) { vendorAgg[vendor].months[m] = { net: 0 }; });
             }
-            for (var m in md.vendor_monthly[vendor].months) {
+            for (var m in md.vendor_monthly[rawVendor].months) {
                 if (vendorAgg[vendor].months[m]) {
-                    vendorAgg[vendor].months[m].net += (md.vendor_monthly[vendor].months[m].net || 0);
+                    vendorAgg[vendor].months[m].net += (md.vendor_monthly[rawVendor].months[m].net || 0);
                 }
             }
         }
