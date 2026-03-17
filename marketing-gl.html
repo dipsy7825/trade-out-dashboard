@@ -234,6 +234,36 @@ body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background:#
                 </table>
             </div>
         </div>
+        <div class="chart-section">
+            <h3>GL Account Monthly Breakdown (Portfolio)</h3>
+            <div class="monthly-subtitle">Net spend by GL account across all properties &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
+            <div class="monthly-grid-wrap">
+                <table class="monthly-grid" id="pfGLGridTable">
+                    <thead id="pfGLGridHead"></thead>
+                    <tbody id="pfGLGridBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="chart-section">
+            <h3>Vendor Monthly Breakdown (Portfolio)</h3>
+            <div class="monthly-subtitle">Net spend by vendor across all properties &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
+            <div class="monthly-grid-wrap">
+                <table class="monthly-grid" id="pfVendorGridTable">
+                    <thead id="pfVendorGridHead"></thead>
+                    <tbody id="pfVendorGridBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="chart-section">
+            <h3>Accounting Adjustments (Portfolio)</h3>
+            <div class="monthly-subtitle">Journal entries, accruals, reclasses, reversals across all properties &nbsp;|&nbsp; Color scale applied per row (low &rarr; high)</div>
+            <div class="monthly-grid-wrap">
+                <table class="monthly-grid" id="pfAcctgNoiseTable">
+                    <thead id="pfAcctgNoiseHead"></thead>
+                    <tbody id="pfAcctgNoiseBody"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- Property detail view -->
@@ -409,6 +439,9 @@ function renderPortfolioView(props, codes) {
     renderMonthlyChart(codes);
     renderComparisonTable(props);
     renderMonthlyGrid(props);
+    renderPortfolioGLGrid(codes);
+    renderPortfolioVendorGrid(codes);
+    renderPortfolioAcctgGrid(codes);
 }
 
 function renderRankingChart(props) {
@@ -794,6 +827,98 @@ function renderAcctgNoiseGrid(code) {
         items.push({ label: k, months: months });
     }
     renderDetailGrid('Adjustment', 'acctgNoiseHead', 'acctgNoiseBody', items, code);
+}
+
+function renderPortfolioGLGrid(codes) {
+    var allMonths = ['2025-03','2025-04','2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'];
+    // Aggregate GL data across all filtered properties
+    var glAgg = {}; // {glCode: {name, months: {m: {net}}}}
+    codes.forEach(function(code) {
+        var md = MONTHLY_DATA[code];
+        if (!md || !md.gl_monthly) return;
+        for (var glCode in md.gl_monthly) {
+            var gl = md.gl_monthly[glCode];
+            if (!glAgg[glCode]) {
+                glAgg[glCode] = { name: gl.name, months: {} };
+                allMonths.forEach(function(m) { glAgg[glCode].months[m] = { net: 0 }; });
+            }
+            for (var m in gl.months) {
+                if (glAgg[glCode].months[m]) {
+                    glAgg[glCode].months[m].net += (gl.months[m].net || 0);
+                }
+            }
+        }
+    });
+    // Also aggregate JPM GL codes that map to the same name
+    // Group by GL name to merge similar accounts across property types
+    var byName = {};
+    for (var glCode in glAgg) {
+        var name = glAgg[glCode].name;
+        if (!byName[name]) {
+            byName[name] = { name: name, months: {} };
+            allMonths.forEach(function(m) { byName[name].months[m] = { net: 0 }; });
+        }
+        for (var m in glAgg[glCode].months) {
+            if (byName[name].months[m]) {
+                byName[name].months[m].net += glAgg[glCode].months[m].net;
+            }
+        }
+    }
+    var items = [];
+    for (var name in byName) {
+        items.push({ label: name, months: byName[name].months });
+    }
+    renderDetailGrid('GL Account', 'pfGLGridHead', 'pfGLGridBody', items, 'portfolio');
+}
+
+function renderPortfolioVendorGrid(codes) {
+    var allMonths = ['2025-03','2025-04','2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'];
+    var vendorAgg = {}; // {vendor: {months: {m: {net}}}}
+    codes.forEach(function(code) {
+        var md = MONTHLY_DATA[code];
+        if (!md || !md.vendor_monthly) return;
+        for (var vendor in md.vendor_monthly) {
+            if (!vendorAgg[vendor]) {
+                vendorAgg[vendor] = { months: {} };
+                allMonths.forEach(function(m) { vendorAgg[vendor].months[m] = { net: 0 }; });
+            }
+            for (var m in md.vendor_monthly[vendor].months) {
+                if (vendorAgg[vendor].months[m]) {
+                    vendorAgg[vendor].months[m].net += (md.vendor_monthly[vendor].months[m].net || 0);
+                }
+            }
+        }
+    });
+    var items = [];
+    for (var vendor in vendorAgg) {
+        items.push({ label: vendor, months: vendorAgg[vendor].months });
+    }
+    renderDetailGrid('Vendor', 'pfVendorGridHead', 'pfVendorGridBody', items, 'portfolio');
+}
+
+function renderPortfolioAcctgGrid(codes) {
+    var allMonths = ['2025-03','2025-04','2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'];
+    var noiseAgg = {}; // {key: {months: {m: {net}}}}
+    codes.forEach(function(code) {
+        var noiseData = ACCTG_NOISE_DATA[code];
+        if (!noiseData) return;
+        for (var key in noiseData) {
+            if (!noiseAgg[key]) {
+                noiseAgg[key] = { months: {} };
+                allMonths.forEach(function(m) { noiseAgg[key].months[m] = { net: 0 }; });
+            }
+            for (var m in noiseData[key]) {
+                if (noiseAgg[key].months[m]) {
+                    noiseAgg[key].months[m].net += noiseData[key][m];
+                }
+            }
+        }
+    });
+    var items = [];
+    for (var key in noiseAgg) {
+        items.push({ label: key, months: noiseAgg[key].months });
+    }
+    renderDetailGrid('Adjustment', 'pfAcctgNoiseHead', 'pfAcctgNoiseBody', items, 'portfolio');
 }
 
 function renderComparisonTable(props) {
